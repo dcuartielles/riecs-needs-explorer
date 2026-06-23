@@ -41,6 +41,11 @@ Plus:
 - node positions (`col`, `order`) baked for a stable, low-crossing layout; labels
   are anchored under the need they are a *member* of.
 
+Every count and co-occurrence weight is also **split by audience** — `c42`/`w42`
+for **D4.2** (citizens & students) and `c43`/`w43` for **D4.3** (stakeholders);
+the totals are both combined. The audience switch in the page recomputes sizes,
+weights and visibility from these without rebuilding.
+
 Only the **aggregated** result (`graph.json`) is published. The underlying
 spreadsheets, user-story texts and any participant information are **never**
 included (see `.gitignore`).

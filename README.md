@@ -36,6 +36,16 @@ A 3-way toggle (top right) controls what the **label↔need** links mean:
 
 (Need→theme links are the same in every mode.)
 
+## Audience filter
+
+A second switch restricts the view to an engagement audience: **Both**, **D4.2**
+(citizens & students) or **D4.3** (stakeholders). Switching recomputes every
+circle's size and every link's weight from that audience's stories, hides
+labels/needs with no stories there, and re-traces the current selection. For
+example, 23 labels are D4.3-only (hidden under D4.2) and 7 are D4.2-only.
+
+![Audience filter set to D4.2](docs/assets/08_audience_d42.png)
+
 ## Examples
 
 ### Click a label → the needs it appears in → their themes
@@ -58,9 +68,10 @@ behind it.
 
 ![Tracing back from a theme](docs/assets/04_theme_trace.png)
 
-Other controls: hover any circle for a tooltip (name + counts), use the **theme
-legend** to jump to a theme, the **search** box to find a label/need/theme, and
-**Reset** (or click the background) to clear.
+Other controls: the **Audience** switch (Both / D4.2 / D4.3, see above), hover any
+circle for a tooltip (name + counts), the **theme legend** to jump to a theme, the
+**search** box to find a label/need/theme, and **Reset** (or click the background)
+to clear.
 
 ## How it works
 
@@ -134,7 +145,7 @@ RIECS-Concept project material; please credit *RIECS-Concept (GA 101188210)*.
 
 ## Possible extensions
 
-- Filter by audience (D4.2 citizens vs D4.3 stakeholders) or stakeholder group.
+- Further filter D4.3 by individual stakeholder group.
 - Encode the current selection in the URL hash for shareable deep links.
 - Edge-weight threshold slider to thin out weak (single-story) links.
 

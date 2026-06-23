@@ -53,6 +53,7 @@ svg[data-mode="both"] .edge.on.is-theme{stroke-opacity:.6}
 
 /* nodes */
 .node{cursor:pointer}
+.node.hidden{display:none}
 .node circle{stroke:#0b1220;stroke-width:1;transition:opacity .2s, r .2s, stroke .2s}
 .node text{fill:var(--ink);pointer-events:none;transition:opacity .2s}
 .node--label text{font-size:10px;opacity:0}           /* labels: text on demand */

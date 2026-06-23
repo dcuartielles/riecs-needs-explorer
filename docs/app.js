@@ -15,13 +15,30 @@ let labelNeedsM = {}, needLabelsM = {};          // member ("makes up")
 let needTheme = {}, themeNeeds = {};
 let themeColor = {}, activeNodes = new Set(), activeEdges = new Set();
 let mode = "member", lastSel = null;             // member | cooc | both
+let aud = "both";                                // both | 42 | 43
+let NODES = [], EDGES = [], edgeData = {}, wMax = 1;
 
 fetch("data/graph.json").then(r => r.json()).then(build);
 
+// audience-aware accessors
+const nodeCount = n => aud==="both" ? n.count : aud==="42" ? n.c42 : n.c43;
+const nodeVisible = n => nodeCount(n) > 0;
+const edgeW = e => aud==="both" ? e.w : aud==="42" ? e.w42 : e.w43;
+function radius(col, c, mx){
+  const f = Math.sqrt(c / (mx||1));
+  return col===0 ? 3+6*f : col===1 ? 8+18*f : 16+22*f;
+}
+function edgeAvail(e){
+  if(!e || !nodeVisible(byId[e.s]) || !nodeVisible(byId[e.t])) return false;
+  if(e.kind==="theme" || e.member) return true;   // structural / definitional
+  return edgeW(e) > 0;                              // co-occurrence needs a story here
+}
+
 function build(data){
+  NODES = data.nodes; EDGES = data.edges;
   data.themes.forEach((t,i)=> themeColor[t] = PALETTE[i % PALETTE.length]);
 
-  // ----- layout -----
+  // ----- layout (positions baked from the full "both" data, kept stable) -----
   const cols = {0:[],1:[],2:[]};
   data.nodes.forEach(n => cols[n.col].push(n));
   const span = Math.max(cols[0].length * 13, 600);
@@ -31,10 +48,7 @@ function build(data){
 
   const maxC = {0:0,1:0,2:0};
   data.nodes.forEach(n => maxC[n.col] = Math.max(maxC[n.col], n.count));
-  const rOf = n => {
-    const f = Math.sqrt(n.count / (maxC[n.col]||1));
-    return n.col===0 ? 3+6*f : n.col===1 ? 8+18*f : 16+22*f;
-  };
+  const rOf = n => radius(n.col, n.count, maxC[n.col]);
   data.nodes.forEach(n => {
     const N = cols[n.col].length;
     n.x = CX[n.col];
@@ -57,16 +71,16 @@ function build(data){
   });
 
   // ----- edges (hidden paths) -----
-  const wMax = Math.max(...data.edges.map(e=>e.w));
+  wMax = Math.max(...data.edges.map(e=>e.w));
   data.edges.forEach(e=>{
     const a = byId[e.s], b = byId[e.t]; if(!a||!b) return;
     const p = document.createElementNS(SVGNS,"path");
     p.setAttribute("d", bez(a,b));
     p.setAttribute("class", "edge" + (e.member ? " is-member" : "") + (e.kind==="theme" ? " is-theme" : ""));
     p.style.stroke = themeColor[b.theme] || "#cfd7e2";
-    p.style.strokeWidth = ((e.member?1.1:0.5) + 2.6*Math.sqrt(e.w/wMax)).toFixed(2);
     gEdges.appendChild(p);
     edgeEl[e.s+">"+e.t] = p;
+    edgeData[e.s+">"+e.t] = e;
   });
 
   // ----- nodes -----
@@ -103,7 +117,37 @@ function build(data){
   $("#reset").addEventListener("click", clearSel);
   document.querySelectorAll("#modes button").forEach(b=>
     b.addEventListener("click", ()=> setMode(b.dataset.mode)));
+  document.querySelectorAll("#auds button").forEach(b=>
+    b.addEventListener("click", ()=> setAudience(b.dataset.aud)));
+  setAudience(aud);                        // size/visibility + active state (default "both")
   setMode(mode);                           // initialise (default "member")
+}
+
+// ---------- audience filter (Both / D4.2 citizens / D4.3 stakeholders) -------
+function applyAudience(){
+  const maxC = {0:1,1:1,2:1};
+  NODES.forEach(n=>{ if(nodeVisible(n)) maxC[n.col] = Math.max(maxC[n.col], nodeCount(n)); });
+  NODES.forEach(n=>{
+    const g = gById[n.id], vis = nodeVisible(n);
+    g.classList.toggle("hidden", !vis);
+    if(vis){
+      const r = radius(n.col, nodeCount(n), maxC[n.col]); n.r = r;
+      g.querySelector("circle").setAttribute("r", r.toFixed(1));
+      g.querySelector("text").setAttribute("x", n.col===0 ? -(r+6) : (r+6));
+    }
+  });
+  EDGES.forEach(e=>{
+    const p = edgeEl[e.s+">"+e.t]; if(!p) return;
+    const w = edgeW(e) || (e.member ? 1 : 0);
+    p.style.strokeWidth = ((e.member?1.1:0.5) + 2.6*Math.sqrt(w/wMax)).toFixed(2);
+  });
+}
+function setAudience(a){
+  aud = a;
+  document.querySelectorAll("#auds button").forEach(b=>
+    b.classList.toggle("active", b.dataset.aud===a));
+  applyAudience();
+  if(lastSel && nodeVisible(byId[lastSel])) select(lastSel); else clearSel();
 }
 
 // cubic bezier with horizontal control tangents (Sankey-style)
@@ -117,20 +161,25 @@ function bez(a,b){
 // follow all co-occurring labels (member ones are styled distinctly via CSS).
 function select(id){
   const n = byId[id]; if(!n) return;
+  if(!nodeVisible(n)){ clearSel(); return; }     // not present in current audience
   lastSel = id;
   const LN = (mode==="member") ? labelNeedsM : labelNeeds;
   const NL = (mode==="member") ? needLabelsM : needLabels;
   const nodes = new Set([id]), edges = new Set();
-  const addE = k => { if(edgeEl[k]) edges.add(k); };
+  const link = (a,b)=>{                          // add edge a>b if available, return ok
+    const e = edgeData[a+">"+b];
+    if(e && edgeAvail(e)){ edges.add(a+">"+b); return true; }
+    return false;
+  };
   if(n.type==="label"){
-    (LN[id]||[]).forEach(nd=>{ nodes.add(nd); addE(id+">"+nd);
-      const th=needTheme[nd]; if(th){ nodes.add(th); addE(nd+">"+th); } });
+    (LN[id]||[]).forEach(nd=>{ if(!link(id,nd)) return; nodes.add(nd);
+      const th=needTheme[nd]; if(th && link(nd,th)) nodes.add(th); });
   } else if(n.type==="theme"){
-    (themeNeeds[id]||[]).forEach(nd=>{ nodes.add(nd); addE(nd+">"+id);
-      (NL[nd]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+nd); }); });
+    (themeNeeds[id]||[]).forEach(nd=>{ if(!link(nd,id)) return; nodes.add(nd);
+      (NL[nd]||[]).forEach(l=>{ if(link(l,nd)) nodes.add(l); }); });
   } else { // need
-    (NL[id]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+id); });
-    const th=needTheme[id]; if(th){ nodes.add(th); addE(id+">"+th); }
+    (NL[id]||[]).forEach(l=>{ if(link(l,id)) nodes.add(l); });
+    const th=needTheme[id]; if(th && link(id,th)) nodes.add(th);
   }
   apply(nodes, edges, id);
 }
@@ -180,11 +229,12 @@ function showInfo(id, nodes){
   let needs=0, labels=0, themes=0;
   nodes.forEach(x=>{ const t=byId[x].type; if(t==="need")needs++; else if(t==="label")labels++; else if(t==="theme")themes++; });
   const rel = mode==="member" ? "makes&nbsp;up" : mode==="cooc" ? "co-occurs" : "both";
+  const audTxt = aud==="both" ? "all" : aud==="42" ? "D4.2 citizens" : "D4.3 stakeholders";
   const k = n.type==="label"? `${labels} label → ${needs} need(s) → ${themes} theme(s)`
           : n.type==="theme"? `${themes} theme → ${needs} needs → ${labels} labels`
           : `${labels} labels → 1 need → ${themes} theme`;
   box.innerHTML = `<b>${esc(n.full)}</b> &nbsp;<span class="chip">${n.type}</span>`
-    + `<span class="chip">${n.count} stories</span><span class="chip">links: ${rel}</span>`
+    + `<span class="chip">${nodeCount(n)} stories (${audTxt})</span><span class="chip">links: ${rel}</span>`
     + `<br><span class="chip">${k}</span>`;
   box.hidden = false;
 }
@@ -199,7 +249,7 @@ function tip(ev,n){
               ? (needLabelsM[n.id]||[]).length+" member labels · "
                 + (needLabels[n.id]||[]).length+" co-occur · 1 theme"
             : (themeNeeds[n.id]||[]).length+" needs";
-  tt.innerHTML = `<b>${esc(n.full)}</b><br><span class="sub">${n.count} stories · ${deg}</span>`;
+  tt.innerHTML = `<b>${esc(n.full)}</b><br><span class="sub">${nodeCount(n)} stories · ${deg}</span>`;
   tt.hidden=false; moveTip(ev);
 }
 function moveTip(ev){ tt.style.left=(ev.clientX+14)+"px"; tt.style.top=(ev.clientY+14)+"px"; }

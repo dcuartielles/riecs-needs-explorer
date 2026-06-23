@@ -52,23 +52,31 @@ ws = wb["RIECS_stories_master_filterable"]
 rows = list(ws.iter_rows(values_only=True))
 H = {h: i for i, h in enumerate(rows[0]) if h and h != "None"}
 
-label_count = Counter()                 # stories per label
-need_count = Counter()                  # stories per need
-ln = Counter()                          # (label, need) co-occurrence
+label_count = Counter()                 # stories per label (both audiences)
+need_count = Counter()                  # stories per need (both)
+ln = Counter()                          # (label, need) co-occurrence (both)
+# per-audience splits: key "42" (citizens / D4.2) and "43" (stakeholders / D4.3)
+label_count_a = {"42": Counter(), "43": Counter()}
+need_count_a = {"42": Counter(), "43": Counter()}
+ln_a = {"42": Counter(), "43": Counter()}
 for r in rows[1:]:
     if not any(r) or r[H["rejected"]]:
+        continue
+    aud_raw = str(r[H["deliverable_audience"]] or "")
+    aud = "42" if aud_raw.startswith("D4.2") else "43" if aud_raw.startswith("D4.3") else None
+    if aud is None:
         continue
     raw_labels = r[H["labels"]]
     raw_needs = r[H["need_ids"]]
     labs = [x.strip() for x in str(raw_labels or "").split("|") if x.strip()]
     nds = [x.strip() for x in re.split(r"[\s,;]+", str(raw_needs or "")) if x.strip() in VALID]
     for l in set(labs):
-        label_count[l] += 1
+        label_count[l] += 1; label_count_a[aud][l] += 1
     for n in set(nds):
-        need_count[n] += 1
+        need_count[n] += 1; need_count_a[aud][n] += 1
     for l in set(labs):
         for n in set(nds):
-            ln[(l, n)] += 1
+            ln[(l, n)] += 1; ln_a[aud][(l, n)] += 1
 
 # drop member entries that are not real story labels (curation wildcards like
 # "<Group> — (any)" or labels never applied in the data)
@@ -104,41 +112,50 @@ labels_sorted = sorted(linked_labels,
                        key=lambda l: (need_pos.get(anchor_need(l), 999), -label_count.get(l, 0), l))
 label_pos = {l: i for i, l in enumerate(labels_sorted)}
 
-# themes: by theme order
-theme_count = Counter()
+# themes: by theme order (counts split by audience)
+theme_count = Counter(); theme_count_a = {"42": Counter(), "43": Counter()}
 for n in VALID:
     theme_count[need_theme[n]] += need_count[n]
+    for a in ("42", "43"):
+        theme_count_a[a][need_theme[n]] += need_count_a[a][n]
 
 # ---- assemble nodes / edges -------------------------------------------------
 nodes, edges = [], []
 for l in labels_sorted:
     nodes.append({"id": lid(l), "type": "label", "name": short(l), "full": l,
                   "theme": need_theme.get(anchor_need(l), ""), "count": label_count.get(l, 0),
+                  "c42": label_count_a["42"].get(l, 0), "c43": label_count_a["43"].get(l, 0),
                   "member_of": member_of.get(l, ""), "col": 0, "order": label_pos[l]})
 for n in needs_sorted:
     nodes.append({"id": n, "type": "need", "name": need_name[n], "full": f'{n} — {need_name[n]}',
                   "theme": need_theme[n], "count": need_count[n],
+                  "c42": need_count_a["42"].get(n, 0), "c43": need_count_a["43"].get(n, 0),
                   "col": 1, "order": need_pos[n]})
 for t in themes:
     nodes.append({"id": tid(t), "type": "theme", "name": t, "full": t, "theme": t,
-                  "count": theme_count[t], "col": 2, "order": theme_order[t]})
+                  "count": theme_count[t], "c42": theme_count_a["42"][t], "c43": theme_count_a["43"][t],
+                  "col": 2, "order": theme_order[t]})
 
 # label->need edges (kind "ln"); a "member" flag marks the definitional pairs.
 # A member pair also co-occurs, so it stays in the co-occurrence view too.
+# w42/w43 = co-occurrence weight per audience (0 if the pair doesn't co-occur there).
 member_pairs = {(l, n) for l, n in member_of.items()}
 n_member = 0
 for (l, n), w in ln.items():
     is_m = (l, n) in member_pairs
     n_member += is_m
-    edges.append({"s": lid(l), "t": n, "w": w, "kind": "ln", "member": is_m})
+    edges.append({"s": lid(l), "t": n, "w": w, "w42": ln_a["42"][(l, n)],
+                  "w43": ln_a["43"][(l, n)], "kind": "ln", "member": is_m})
 # members that never co-occurred in any story (weight unknown -> 1)
 for (l, n) in member_pairs:
     if (l, n) not in ln:
-        edges.append({"s": lid(l), "t": n, "w": 1, "kind": "ln", "member": True})
+        edges.append({"s": lid(l), "t": n, "w": 1, "w42": 0, "w43": 0,
+                      "kind": "ln", "member": True})
         n_member += 1
-# need->theme edges (mode-independent)
+# need->theme edges (mode-independent; weight split by audience)
 for n in needs_sorted:
-    edges.append({"s": n, "t": tid(need_theme[n]), "w": need_count[n], "kind": "theme"})
+    edges.append({"s": n, "t": tid(need_theme[n]), "w": need_count[n],
+                  "w42": need_count_a["42"][n], "w43": need_count_a["43"][n], "kind": "theme"})
 
 data = {
     "meta": {"labels": len(labels_sorted), "needs": len(needs_sorted), "themes": len(themes),
@@ -147,7 +164,9 @@ data = {
              "source": "RIECS_stories_master_filterable.xlsx (non-rejected) + work/needs.csv",
              "note": "label->need has two kinds: 'member' = labels that MAKE UP the need "
                      "(curated member_labels); 'cooc' = labels that CO-OCCUR on the need's stories "
-                     "(weight = #stories). need->theme kind='theme'. AI-derived, for validation."},
+                     "(weight = #stories). need->theme kind='theme'. Counts/weights are split by "
+                     "audience: c42/w42 = D4.2 (citizens), c43/w43 = D4.3 (stakeholders); "
+                     "totals are both. AI-derived, for validation."},
     "themes": themes,
     "nodes": nodes,
     "edges": edges,
