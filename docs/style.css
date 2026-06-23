@@ -32,7 +32,7 @@ header{display:flex;justify-content:space-between;align-items:flex-start;gap:18p
 .legend{display:flex;flex-wrap:wrap;gap:6px;padding:8px 20px;background:var(--panel);
   border-bottom:1px solid var(--line)}
 .legend .sw{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:14px;
-  background:#0c1626;border:1px solid var(--line);cursor:pointer;font-size:12px}
+  background:#0c1626;border:1px solid var(--line);cursor:pointer;font-size:12px;color:#fff}
 .legend .sw:hover{border-color:var(--accent)}
 .legend .dot{width:11px;height:11px;border-radius:50%}
 
