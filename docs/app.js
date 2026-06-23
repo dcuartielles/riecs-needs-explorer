@@ -191,19 +191,20 @@ function apply(nodes, edges, id){
   edges.forEach(k=>{ const p=edgeEl[k]; p.classList.add("on"); activeEdges.add(p); draw(p); });
   gById[id].classList.add("sel"); activeNodes.add(gById[id]);
   showInfo(id, nodes);
-  centerNode(id);
 }
 
-// scroll the canvas so the selected node sits vertically centred — but only if
-// it is currently off-screen (e.g. a theme picked from the legend or search).
+// scroll the canvas so a node sits vertically centred. Always scrolls (used when
+// picking from the legend or search); direct circle clicks don't call this.
 function centerNode(id){
   const g = gById[id], sc = $("#scroll");
-  if(!g || !sc) return;
+  if(!g || !sc || !nodeVisible(byId[id])) return;
   const gr = g.getBoundingClientRect(), sr = sc.getBoundingClientRect();
-  if(gr.top >= sr.top && gr.bottom <= sr.bottom) return;   // already fully visible
   const delta = (gr.top + gr.height/2) - (sr.top + sr.height/2);
+  if(Math.abs(delta) < 1) return;
   sc.scrollTo({top: sc.scrollTop + delta, behavior: "smooth"});
 }
+// select a node and always centre it (legend / search entry points)
+function pick(id){ select(id); centerNode(id); }
 
 function clearSel(keep){
   activeNodes.forEach(g=> g.classList.remove("on","sel"));
@@ -274,7 +275,7 @@ function buildLegend(themes){
   themes.forEach(t=>{
     const b=document.createElement("button"); b.className="sw"; b.type="button";
     b.innerHTML=`<span class="dot" style="background:${themeColor[t]}"></span>${esc(t)}`;
-    b.addEventListener("click",()=> idByName[t] && select(idByName[t]));
+    b.addEventListener("click",()=> idByName[t] && pick(idByName[t]));
     L.appendChild(b);
   });
 }
@@ -286,7 +287,7 @@ function buildSearch(nodes){
   const inp=$("#search"); inp.setAttribute("list","names");
   const go=()=>{ const v=inp.value.trim().toLowerCase(); if(!v) return;
     let id=map[v]; if(!id){ const hit=nodes.find(n=>n.full.toLowerCase().includes(v)); id=hit&&hit.id; }
-    if(id) select(id); };
+    if(id) pick(id); };
   inp.addEventListener("change",go);
   inp.addEventListener("keydown",e=>{ if(e.key==="Enter") go(); });
 }
