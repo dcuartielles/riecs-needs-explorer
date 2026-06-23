@@ -19,10 +19,12 @@ NEEDS_CSV = ROOT / "work" / "needs.csv"
 STORIES = ROOT / "inputs" / "04 - 20260622 updates and requests" / "RIECS_stories_master_filterable.xlsx"
 OUT = Path(__file__).resolve().parent / "docs" / "data" / "graph.json"
 
-SEP = re.compile(r"\s*[—–\-]\s*")          # em / en / hyphen dash
-def short(name):                                       # "Group — Sublabel" -> "Sublabel"
+SEP = re.compile(r"\s*›\s*")          # labelbook separator is "›" (U+203A)
+def short(name):                                       # "Group › Sublabel" -> "Sublabel"
     parts = SEP.split(name, maxsplit=1)
     return parts[1].strip() if len(parts) > 1 else name.strip()
+def group_of(name):                                    # "Group › Sublabel" -> "Group"
+    return SEP.split(name, maxsplit=1)[0].strip()
 
 def lid(label): return "L:" + re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-")
 def tid(theme): return "T:" + re.sub(r"[^a-z0-9]+", "-", theme.lower()).strip("-")
@@ -33,13 +35,23 @@ need_theme = {n["need_id"]: n["theme"].strip() for n in needs}
 need_name  = {n["need_id"]: n["name"].strip() for n in needs}
 VALID = set(need_theme)                                # N01..N29
 
-# member_labels = the labels that *make up* (define) each need
-member_of = {}                                          # label -> need (curated, ~1:1)
+# member_labels = the labels that *make up* (define) each need. Two forms:
+#   explicit  "Group › Sublabel"  -> that label is a member of the need
+#   wildcard  "Group › (any)"     -> ANY sublabel of that group is a member
+# Explicit memberships take precedence; wildcards are expanded later (once the
+# set of real story labels is known) so e.g. N28 picks up every
+# "Scalability & Performance › …" label instead of nothing.
+explicit_members = {}                                   # label -> need
+wildcard_groups = []                                    # (group, need)
 for n in needs:
     for m in (n["member_labels"] or "").split("|"):
         m = m.strip()
-        if m:
-            member_of[m] = n["need_id"]
+        if not m:
+            continue
+        if m.lower().endswith("(any)"):
+            wildcard_groups.append((group_of(m), n["need_id"]))
+        else:
+            explicit_members[m] = n["need_id"]
 
 # theme order: by number of needs (desc), then name
 theme_nneeds = Counter(need_theme.values())
@@ -78,20 +90,33 @@ for r in rows[1:]:
         for n in set(nds):
             ln[(l, n)] += 1; ln_a[aud][(l, n)] += 1
 
-# drop member entries that are not real story labels (curation wildcards like
-# "<Group> — (any)" or labels never applied in the data)
-dropped = sorted(l for l in member_of if l not in label_count)
-member_of = {l: n for l, n in member_of.items() if l in label_count}
+# 1) explicit members: keep those that are real story labels
+member_of = {l: n for l, n in explicit_members.items() if l in label_count}
+dropped = sorted(l for l in explicit_members if l not in label_count)
 if dropped:
-    print(f"  [info] dropped {len(dropped)} non-story member entries (e.g. '(any)' wildcards):")
+    print(f"  [info] dropped {len(dropped)} explicit member labels not present in stories:")
     for l in dropped:
         print("       -", l)
-# needs left without any member label after the drop
+# 2) expand "(any)" wildcards: every real label in the group becomes a member of
+#    the wildcard's need, unless it is already an explicit member of another need
+group_labels = defaultdict(list)
+for l in label_count:
+    group_labels[group_of(l)].append(l)
+for grp, need in wildcard_groups:
+    hits = group_labels.get(grp, [])
+    added = 0
+    for l in hits:
+        if l not in member_of:
+            member_of[l] = need
+            added += 1
+    print(f"  [info] wildcard '{grp} › (any)' -> {need}: {added} labels "
+          f"({'no labels found for group' if not hits else 'group has %d labels' % len(hits)})")
+# needs still without any member label
 from collections import Counter as _C
 mc = _C(member_of.values())
 empty = sorted(VALID - set(mc))
 if empty:
-    print("  [info] needs with no specific member label:", ", ".join(empty))
+    print("  [info] needs with no member label:", ", ".join(empty))
 
 # labels shown = those that co-occur with a valid need OR are a member of one
 linked_labels = {l for (l, n) in ln} | set(member_of)

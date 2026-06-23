@@ -28,8 +28,9 @@ From these it derives two kinds of **label → need** edge:
 
 - **member** ("makes up") — the labels listed in a need's curated `member_labels`;
   i.e. the labels the need was **defined from**. Near 1:1 (a label is usually a
-  member of one need). Curation wildcards such as `<Group> — (any)` are dropped,
-  so a need defined only by a wildcard (currently **N28**) has no member label.
+  member of one need). A `Group › (any)` wildcard is **expanded** to every real
+  sublabel of that group (so e.g. all `Scalability & Performance › …` labels are
+  members of N28); explicit memberships take precedence over a wildcard.
 - **co-occurrence** ("co-occurs") — a label and a need are linked when they appear
   together on a story; the **weight is the number of stories** in which they
   co-occur. Broad and **many-to-many**.
@@ -55,13 +56,14 @@ included (see `.gitignore`).
 - Only the **29 themed core needs (N01–N29)** are shown. The framework also
   contains N30–N37, which do not yet have a theme assigned and are therefore
   excluded; add a theme to those needs and re-run `build_graph.py` to include them.
+- After `(any)` expansion every need has at least one member label.
 - The label→need links and the clustering are an **AI-assisted first pass and
   are pending consortium validation**. Treat the map as an exploratory aid, not
   a validated result.
 
 ## Current figures
 
-141 labels · 29 needs · 9 themes · 111 member + 2,225 co-occurrence label→need
+141 labels · 29 needs · 9 themes · 129 member + 2,207 co-occurrence label→need
 edges (+ 29 need→theme).
 
 ## Reuse
