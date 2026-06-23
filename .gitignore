@@ -1,0 +1,12 @@
+# Never commit source engagement data — only the derived graph.json is public.
+*.xlsx
+*.xls
+*.csv
+inputs/
+work/
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

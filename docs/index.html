@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RIECS — Labels · Needs · Themes explorer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="title">
+    <h1>RIECS — Labels · Needs · Themes</h1>
+    <p>Click any circle to trace the connections. Labels link to the <em>needs</em> they appear in,
+       and needs link to their <em>theme</em> — both directions. Many-to-many, weighted by stories.
+       <span class="flag">AI-derived · for consortium validation</span></p>
+  </div>
+  <div class="controls">
+    <input id="search" type="search" placeholder="Search a label, need or theme…" autocomplete="off">
+    <button id="reset" type="button">Reset</button>
+  </div>
+</header>
+
+<div id="legend" class="legend" aria-label="Themes"></div>
+
+<main id="stage">
+  <div class="colhead"><span id="h-labels">Labels</span><span id="h-needs">Needs</span><span id="h-themes">Themes</span></div>
+  <div id="scroll">
+    <svg id="graph" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Labels, needs and themes graph">
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </svg>
+  </div>
+</main>
+
+<aside id="info" class="info" hidden></aside>
+<div id="tooltip" class="tooltip" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
