@@ -10,8 +10,11 @@ const $ = s => document.querySelector(s);
 const gEdges = $("#edges"), gNodes = $("#nodes"), svg = $("#graph");
 
 let byId = {}, gById = {}, edgeEl = {};
-let labelNeeds = {}, needLabels = {}, needTheme = {}, themeNeeds = {};
+let labelNeeds = {}, needLabels = {};            // co-occurrence (all)
+let labelNeedsM = {}, needLabelsM = {};          // member ("makes up")
+let needTheme = {}, themeNeeds = {};
 let themeColor = {}, activeNodes = new Set(), activeEdges = new Set();
+let mode = "member", lastSel = null;             // member | cooc | both
 
 fetch("data/graph.json").then(r => r.json()).then(build);
 
@@ -41,14 +44,15 @@ function build(data){
   });
 
   // ----- adjacency -----
-  const needIds = new Set(data.nodes.filter(n=>n.type==="need").map(n=>n.id));
   data.edges.forEach(e=>{
-    if (needIds.has(e.t)) {                 // label -> need
-      (labelNeeds[e.s] ??= []).push(e.t);
-      (needLabels[e.t] ??= []).push(e.s);
-    } else {                                // need -> theme
+    if (e.kind === "theme") {                 // need -> theme
       needTheme[e.s] = e.t;
       (themeNeeds[e.t] ??= []).push(e.s);
+    } else {                                  // label -> need (kind "ln")
+      (labelNeeds[e.s] ??= []).push(e.t);
+      (needLabels[e.t] ??= []).push(e.s);
+      if (e.member){ (labelNeedsM[e.s] ??= []).push(e.t);
+                     (needLabelsM[e.t] ??= []).push(e.s); }
     }
   });
 
@@ -58,9 +62,9 @@ function build(data){
     const a = byId[e.s], b = byId[e.t]; if(!a||!b) return;
     const p = document.createElementNS(SVGNS,"path");
     p.setAttribute("d", bez(a,b));
-    p.setAttribute("class","edge");
-    p.style.stroke = themeColor[b.type==="theme"? b.theme : b.theme] || "#cfd7e2";
-    p.style.strokeWidth = (0.5 + 2.6*Math.sqrt(e.w/wMax)).toFixed(2);
+    p.setAttribute("class", "edge" + (e.member ? " is-member" : "") + (e.kind==="theme" ? " is-theme" : ""));
+    p.style.stroke = themeColor[b.theme] || "#cfd7e2";
+    p.style.strokeWidth = ((e.member?1.1:0.5) + 2.6*Math.sqrt(e.w/wMax)).toFixed(2);
     gEdges.appendChild(p);
     edgeEl[e.s+">"+e.t] = p;
   });
@@ -97,6 +101,9 @@ function build(data){
   $("#h-themes").textContent = `Themes (${cols[2].length})`;
   svg.addEventListener("click", clearSel);
   $("#reset").addEventListener("click", clearSel);
+  document.querySelectorAll("#modes button").forEach(b=>
+    b.addEventListener("click", ()=> setMode(b.dataset.mode)));
+  setMode(mode);                           // initialise (default "member")
 }
 
 // cubic bezier with horizontal control tangents (Sankey-style)
@@ -106,18 +113,23 @@ function bez(a,b){
 }
 
 // ---------- selection / tracing ----------
+// "member" mode follows only the labels that make up a need; "cooc"/"both"
+// follow all co-occurring labels (member ones are styled distinctly via CSS).
 function select(id){
   const n = byId[id]; if(!n) return;
+  lastSel = id;
+  const LN = (mode==="member") ? labelNeedsM : labelNeeds;
+  const NL = (mode==="member") ? needLabelsM : needLabels;
   const nodes = new Set([id]), edges = new Set();
   const addE = k => { if(edgeEl[k]) edges.add(k); };
   if(n.type==="label"){
-    (labelNeeds[id]||[]).forEach(nd=>{ nodes.add(nd); addE(id+">"+nd);
+    (LN[id]||[]).forEach(nd=>{ nodes.add(nd); addE(id+">"+nd);
       const th=needTheme[nd]; if(th){ nodes.add(th); addE(nd+">"+th); } });
   } else if(n.type==="theme"){
     (themeNeeds[id]||[]).forEach(nd=>{ nodes.add(nd); addE(nd+">"+id);
-      (needLabels[nd]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+nd); }); });
+      (NL[nd]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+nd); }); });
   } else { // need
-    (needLabels[id]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+id); });
+    (NL[id]||[]).forEach(l=>{ nodes.add(l); addE(l+">"+id); });
     const th=needTheme[id]; if(th){ nodes.add(th); addE(id+">"+th); }
   }
   apply(nodes, edges, id);
@@ -137,7 +149,16 @@ function clearSel(keep){
   activeEdges.forEach(p=>{ p.classList.remove("on"); undraw(p); });
   activeNodes.clear(); activeEdges.clear();
   svg.classList.remove("has-sel");
-  if(!keep){ $("#info").hidden = true; const s=$("#search"); if(s) s.value=""; }
+  if(!keep){ lastSel=null; $("#info").hidden = true; const s=$("#search"); if(s) s.value=""; }
+}
+
+// ---------- mode toggle (Makes up / Co-occurs / Both) ----------
+function setMode(m){
+  mode = m;
+  svg.dataset.mode = m;
+  document.querySelectorAll("#modes button").forEach(b=>
+    b.classList.toggle("active", b.dataset.mode===m));
+  if(lastSel) select(lastSel);            // re-trace the current selection
 }
 
 // draw-in animation via stroke-dasharray
@@ -158,19 +179,25 @@ function showInfo(id, nodes){
   const n=byId[id], box=$("#info");
   let needs=0, labels=0, themes=0;
   nodes.forEach(x=>{ const t=byId[x].type; if(t==="need")needs++; else if(t==="label")labels++; else if(t==="theme")themes++; });
-  const k = n.type==="label"? `${labels} label → ${needs} needs → ${themes} theme(s)`
+  const rel = mode==="member" ? "makes&nbsp;up" : mode==="cooc" ? "co-occurs" : "both";
+  const k = n.type==="label"? `${labels} label → ${needs} need(s) → ${themes} theme(s)`
           : n.type==="theme"? `${themes} theme → ${needs} needs → ${labels} labels`
           : `${labels} labels → 1 need → ${themes} theme`;
   box.innerHTML = `<b>${esc(n.full)}</b> &nbsp;<span class="chip">${n.type}</span>`
-    + `<span class="chip">${n.count} stories</span><br><span class="chip">${k}</span>`;
+    + `<span class="chip">${n.count} stories</span><span class="chip">links: ${rel}</span>`
+    + `<br><span class="chip">${k}</span>`;
   box.hidden = false;
 }
 
 // ---------- tooltip ----------
 const tt = $("#tooltip");
 function tip(ev,n){
-  const deg = n.type==="label" ? (labelNeeds[n.id]||[]).length+" needs"
-            : n.type==="need" ? (needLabels[n.id]||[]).length+" labels · 1 theme"
+  const deg = n.type==="label"
+              ? ((labelNeedsM[n.id]? "makes up "+labelNeedsM[n.id].join(", ")+" · " : "")
+                 + (labelNeeds[n.id]||[]).length+" needs co-occur")
+            : n.type==="need"
+              ? (needLabelsM[n.id]||[]).length+" member labels · "
+                + (needLabels[n.id]||[]).length+" co-occur · 1 theme"
             : (themeNeeds[n.id]||[]).length+" needs";
   tt.innerHTML = `<b>${esc(n.full)}</b><br><span class="sub">${n.count} stories · ${deg}</span>`;
   tt.hidden=false; moveTip(ev);

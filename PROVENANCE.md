@@ -24,14 +24,22 @@ stories** — only aggregate counts and the labels/needs/themes taxonomy.
   with its labels and need IDs), and
 - the curated needs table (`needs.csv`: each need's name, theme and member labels).
 
-From these it derives:
+From these it derives two kinds of **label → need** edge:
 
-- **label → need** edges from **story co-occurrence** (a label and a need are
-  linked when they appear together on a story); the edge **weight is the number
-  of stories** in which they co-occur. This is a **many-to-many** relationship.
+- **member** ("makes up") — the labels listed in a need's curated `member_labels`;
+  i.e. the labels the need was **defined from**. Near 1:1 (a label is usually a
+  member of one need). Curation wildcards such as `<Group> — (any)` are dropped,
+  so a need defined only by a wildcard (currently **N28**) has no member label.
+- **co-occurrence** ("co-occurs") — a label and a need are linked when they appear
+  together on a story; the **weight is the number of stories** in which they
+  co-occur. Broad and **many-to-many**.
+
+Plus:
+
 - **need → theme** edges from the curated grouping (one theme per need).
 - **node size** = number of stories carrying that label / need / theme.
-- node positions (`col`, `order`) baked for a stable, low-crossing layout.
+- node positions (`col`, `order`) baked for a stable, low-crossing layout; labels
+  are anchored under the need they are a *member* of.
 
 Only the **aggregated** result (`graph.json`) is published. The underlying
 spreadsheets, user-story texts and any participant information are **never**
@@ -48,7 +56,8 @@ included (see `.gitignore`).
 
 ## Current figures
 
-141 labels · 29 needs · 9 themes · 2,336 label→need edges (+ 29 need→theme).
+141 labels · 29 needs · 9 themes · 111 member + 2,225 co-occurrence label→need
+edges (+ 29 need→theme).
 
 ## Reuse
 

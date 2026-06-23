@@ -17,12 +17,31 @@ Three columns on one surface — **labels** (left), **needs** (centre),
 
 ![Overview of the three columns](docs/assets/01_overview.png)
 
+## Two relationships: *makes up* vs *co-occurs*
+
+A 3-way toggle (top right) controls what the **label↔need** links mean:
+
+- **Makes up** — the labels that **define** a need (its curated *member labels*).
+  This is the tight, near-1:1 composition. Clicking *N01 — Project discovery and
+  matchmaking* shows just its 3 defining labels.
+- **Co-occurs** — every label that appears on the **same stories** as the need
+  (weighted by number of stories). Broad and many-to-many; the same N01 touches
+  ~80 labels.
+- **Both** — co-occurrence shown faintly as context, with the *makes-up* links
+  highlighted on top.
+
+| Makes up (composition) | Both (member links over co-occurrence context) |
+|---|---|
+| ![Makes up](docs/assets/05_need_makesup.png) | ![Both](docs/assets/07_need_both.png) |
+
+(Need→theme links are the same in every mode.)
+
 ## Examples
 
 ### Click a label → the needs it appears in → their themes
-Label→need links are **many-to-many**: one label can feed several needs, each of
-which carries on to its theme. Here a single training/support label fans out
-across needs in different themes.
+In **Co-occurs** mode the links are many-to-many: one label can feed several
+needs, each of which carries on to its theme. Here a single training/support
+label fans out across needs in different themes.
 
 ![Tracing from a label](docs/assets/02_label_trace.png)
 
@@ -45,10 +64,12 @@ legend** to jump to a theme, the **search** box to find a label/need/theme, and
 
 ## How it works
 
-- Label→need links come from **story co-occurrence**, weighted by the number of
-  stories; need→theme is the curated grouping. Counts drive circle size.
+- Each label→need edge is tagged `member` (the need's curated *member labels*)
+  and/or carries a co-occurrence weight (number of shared stories); need→theme is
+  the curated grouping. Counts drive circle size; the toggle picks which links to
+  trace. Counts and weights come from non-rejected stories.
 - All edges are pre-built as hidden SVG `<path>` elements; interaction only
-  toggles CSS classes, so tracing is instant and there is no re-layout.
+  toggles CSS classes, so tracing and mode switching are instant — no re-layout.
 - ~180 nodes — small enough that plain SVG (not Canvas) is the right tool.
 
 ## Data & provenance
@@ -81,7 +102,8 @@ python build_graph.py
 Reads the project's story master spreadsheet (non-rejected stories) and the
 curated needs table, and writes `docs/data/graph.json`. Those source files are
 **not** part of this repository (see `.gitignore`).
-Current size: 141 labels, 29 needs, 9 themes, 2,336 label→need edges.
+Current size: 141 labels, 29 needs, 9 themes; 111 *member* + 2,225 *co-occurrence*
+label→need edges.
 
 > Only the 29 themed core needs (N01–N29) are shown; N30–N37 have no theme yet.
 > Add a theme to those needs and re-run to include them.
@@ -112,8 +134,6 @@ RIECS-Concept project material; please credit *RIECS-Concept (GA 101188210)*.
 
 ## Possible extensions
 
-- Toggle between the many-to-many (co-occurrence) view and the curated 1:1
-  `member_labels` hierarchy.
 - Filter by audience (D4.2 citizens vs D4.3 stakeholders) or stakeholder group.
 - Encode the current selection in the URL hash for shareable deep links.
 - Edge-weight threshold slider to thin out weak (single-story) links.

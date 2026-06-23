@@ -33,6 +33,14 @@ need_theme = {n["need_id"]: n["theme"].strip() for n in needs}
 need_name  = {n["need_id"]: n["name"].strip() for n in needs}
 VALID = set(need_theme)                                # N01..N29
 
+# member_labels = the labels that *make up* (define) each need
+member_of = {}                                          # label -> need (curated, ~1:1)
+for n in needs:
+    for m in (n["member_labels"] or "").split("|"):
+        m = m.strip()
+        if m:
+            member_of[m] = n["need_id"]
+
 # theme order: by number of needs (desc), then name
 theme_nneeds = Counter(need_theme.values())
 themes = sorted(theme_nneeds, key=lambda t: (-theme_nneeds[t], t))
@@ -62,20 +70,38 @@ for r in rows[1:]:
         for n in set(nds):
             ln[(l, n)] += 1
 
-# keep only labels that actually link to a valid need
-linked_labels = {l for (l, n) in ln}
+# drop member entries that are not real story labels (curation wildcards like
+# "<Group> — (any)" or labels never applied in the data)
+dropped = sorted(l for l in member_of if l not in label_count)
+member_of = {l: n for l, n in member_of.items() if l in label_count}
+if dropped:
+    print(f"  [info] dropped {len(dropped)} non-story member entries (e.g. '(any)' wildcards):")
+    for l in dropped:
+        print("       -", l)
+# needs left without any member label after the drop
+from collections import Counter as _C
+mc = _C(member_of.values())
+empty = sorted(VALID - set(mc))
+if empty:
+    print("  [info] needs with no specific member label:", ", ".join(empty))
+
+# labels shown = those that co-occur with a valid need OR are a member of one
+linked_labels = {l for (l, n) in ln} | set(member_of)
 
 # ---- positions --------------------------------------------------------------
 # needs: grouped by theme order, then by count desc
 needs_sorted = sorted(VALID, key=lambda n: (theme_order[need_theme[n]], -need_count[n], n))
 need_pos = {n: i for i, n in enumerate(needs_sorted)}
 
-# labels: ordered by their dominant need's position (then weight desc)
-def dominant_need(l):
+# a label's anchor need = the need it is a MEMBER of (its definitional parent);
+# for the few labels with no member need, fall back to the strongest co-occurrence.
+def dominant_cooc(l):
     cands = [(w, n) for (ll, n), w in ln.items() if ll == l]
     return max(cands)[1] if cands else "N99"
+def anchor_need(l):
+    return member_of.get(l) or dominant_cooc(l)
 labels_sorted = sorted(linked_labels,
-                       key=lambda l: (need_pos.get(dominant_need(l), 999), -label_count[l], l))
+                       key=lambda l: (need_pos.get(anchor_need(l), 999), -label_count.get(l, 0), l))
 label_pos = {l: i for i, l in enumerate(labels_sorted)}
 
 # themes: by theme order
@@ -87,8 +113,8 @@ for n in VALID:
 nodes, edges = [], []
 for l in labels_sorted:
     nodes.append({"id": lid(l), "type": "label", "name": short(l), "full": l,
-                  "theme": need_theme.get(dominant_need(l), ""), "count": label_count[l],
-                  "col": 0, "order": label_pos[l]})
+                  "theme": need_theme.get(anchor_need(l), ""), "count": label_count.get(l, 0),
+                  "member_of": member_of.get(l, ""), "col": 0, "order": label_pos[l]})
 for n in needs_sorted:
     nodes.append({"id": n, "type": "need", "name": need_name[n], "full": f'{n} — {need_name[n]}',
                   "theme": need_theme[n], "count": need_count[n],
@@ -97,16 +123,31 @@ for t in themes:
     nodes.append({"id": tid(t), "type": "theme", "name": t, "full": t, "theme": t,
                   "count": theme_count[t], "col": 2, "order": theme_order[t]})
 
+# label->need edges (kind "ln"); a "member" flag marks the definitional pairs.
+# A member pair also co-occurs, so it stays in the co-occurrence view too.
+member_pairs = {(l, n) for l, n in member_of.items()}
+n_member = 0
 for (l, n), w in ln.items():
-    edges.append({"s": lid(l), "t": n, "w": w})
+    is_m = (l, n) in member_pairs
+    n_member += is_m
+    edges.append({"s": lid(l), "t": n, "w": w, "kind": "ln", "member": is_m})
+# members that never co-occurred in any story (weight unknown -> 1)
+for (l, n) in member_pairs:
+    if (l, n) not in ln:
+        edges.append({"s": lid(l), "t": n, "w": 1, "kind": "ln", "member": True})
+        n_member += 1
+# need->theme edges (mode-independent)
 for n in needs_sorted:
-    edges.append({"s": n, "t": tid(need_theme[n]), "w": need_count[n]})
+    edges.append({"s": n, "t": tid(need_theme[n]), "w": need_count[n], "kind": "theme"})
 
 data = {
     "meta": {"labels": len(labels_sorted), "needs": len(needs_sorted), "themes": len(themes),
-             "edges_label_need": len(ln), "edges_need_theme": len(needs_sorted),
+             "edges_member": n_member, "edges_cooc": len(ln) - n_member,
+             "edges_need_theme": len(needs_sorted),
              "source": "RIECS_stories_master_filterable.xlsx (non-rejected) + work/needs.csv",
-             "note": "label->need = story co-occurrence (many-to-many); counts = #stories. AI-derived, for validation."},
+             "note": "label->need has two kinds: 'member' = labels that MAKE UP the need "
+                     "(curated member_labels); 'cooc' = labels that CO-OCCUR on the need's stories "
+                     "(weight = #stories). need->theme kind='theme'. AI-derived, for validation."},
     "themes": themes,
     "nodes": nodes,
     "edges": edges,
