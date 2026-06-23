@@ -191,6 +191,18 @@ function apply(nodes, edges, id){
   edges.forEach(k=>{ const p=edgeEl[k]; p.classList.add("on"); activeEdges.add(p); draw(p); });
   gById[id].classList.add("sel"); activeNodes.add(gById[id]);
   showInfo(id, nodes);
+  centerNode(id);
+}
+
+// scroll the canvas so the selected node sits vertically centred — but only if
+// it is currently off-screen (e.g. a theme picked from the legend or search).
+function centerNode(id){
+  const g = gById[id], sc = $("#scroll");
+  if(!g || !sc) return;
+  const gr = g.getBoundingClientRect(), sr = sc.getBoundingClientRect();
+  if(gr.top >= sr.top && gr.bottom <= sr.bottom) return;   // already fully visible
+  const delta = (gr.top + gr.height/2) - (sr.top + sr.height/2);
+  sc.scrollTo({top: sc.scrollTop + delta, behavior: "smooth"});
 }
 
 function clearSel(keep){
