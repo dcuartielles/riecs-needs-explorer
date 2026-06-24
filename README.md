@@ -110,14 +110,15 @@ riecs-needs-explorer/
 python build_graph.py
 ```
 
-Reads the project's story master spreadsheet (non-rejected stories) and the
-curated needs table, and writes `docs/data/graph.json`. Those source files are
-**not** part of this repository (see `.gitignore`).
-Current size: 141 labels, 29 needs, 9 themes; 129 *member* + 2,207 *co-occurrence*
+Reads the project's story master spreadsheet (non-rejected stories), the curated
+needs table and the needs summary (for the inferred needs' themes), and writes
+`docs/data/graph.json`. Those source files are **not** part of this repository
+(keep them locally in `data_local/`; see `.gitignore`).
+Current size: 141 labels, 37 needs, 9 themes; 129 *member* + 2,302 *co-occurrence*
 label→need edges.
 
-> Only the 29 themed core needs (N01–N29) are shown; N30–N37 have no theme yet.
-> Add a theme to those needs and re-run to include them.
+> All 37 needs (N01–N37) are shown. N30–N37 are inferred needs with assigned
+> themes but no curated member labels, so they appear via co-occurrence links only.
 
 ## Preview locally
 

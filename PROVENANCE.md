@@ -13,16 +13,21 @@ stories** — only aggregate counts and the labels/needs/themes taxonomy.
   labelled by 13 consortium partners in a collaborative labelling session
   (May 2026) against a shared *labelbook*.
 - **Labels:** the labelbook sublabels (shown as `Group › Sublabel`).
-- **Needs (N01–N29):** clusters derived from the co-occurrence of labels across
-  stories, grouped into **9 themes**.
+- **Needs (N01–N37):** clusters derived from the co-occurrence of labels across
+  stories, grouped into **9 themes**. N01–N29 are the curated core needs; N30–N37
+  are later **inferred** needs (each assigned a theme; no curated member labels, so
+  they appear via co-occurrence links only).
 
 ## How `docs/data/graph.json` is built
 
-`build_graph.py` reads two project files (kept **outside** this repository):
+`build_graph.py` reads three project files (kept **outside** the published repo,
+in a local, git-ignored `data_local/` folder):
 
 - the story master spreadsheet (one row per labelled, non-rejected user story,
-  with its labels and need IDs), and
-- the curated needs table (`needs.csv`: each need's name, theme and member labels).
+  with its labels and need IDs — column `need_ids_incl_N30_37_INFERRED`),
+- the curated needs table (`needs.csv`: each core need's name, theme and member labels), and
+- the needs summary (`needs_summary_with_quotes_v002.xlsx`), which supplies the
+  names and themes of the inferred needs N30–N37.
 
 From these it derives two kinds of **label → need** edge:
 
@@ -53,18 +58,18 @@ included (see `.gitignore`).
 
 ## Scope and status
 
-- Only the **29 themed core needs (N01–N29)** are shown. The framework also
-  contains N30–N37, which do not yet have a theme assigned and are therefore
-  excluded; add a theme to those needs and re-run `build_graph.py` to include them.
-- After `(any)` expansion every need has at least one member label.
+- All **37 needs (N01–N37)** across **9 themes** are shown. N30–N37 are inferred
+  needs that were given themes (2026-06); they carry no curated `member_labels`,
+  so they appear through co-occurrence links only.
+- After `(any)` expansion every **core** need (N01–N29) has at least one member label.
 - The label→need links and the clustering are an **AI-assisted first pass and
   are pending consortium validation**. Treat the map as an exploratory aid, not
   a validated result.
 
 ## Current figures
 
-141 labels · 29 needs · 9 themes · 129 member + 2,207 co-occurrence label→need
-edges (+ 29 need→theme).
+141 labels · 37 needs · 9 themes · 129 member + 2,302 co-occurrence label→need
+edges (+ 37 need→theme).
 
 ## Reuse
 

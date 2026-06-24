@@ -6,7 +6,8 @@ Tripartite many-to-many graph:
 
 - label->need edges: derived from the story master; weight = number of
   (non-rejected) stories in which the label and the need_id co-occur.
-- need->theme edges: from work/needs.csv (the 29 themed core needs, 9 themes).
+- need->theme edges: from work/needs.csv (29 core needs) + needs_summary v002
+  (the inferred needs N30-N37 with their assigned themes) = 37 needs, 9 themes.
 - node positions (col, order) are baked here for a stable hierarchical layout.
 """
 import csv, json, re
@@ -14,9 +15,12 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import openpyxl
 
-ROOT = Path(__file__).resolve().parents[2]
-NEEDS_CSV = ROOT / "work" / "needs.csv"
-STORIES = ROOT / "inputs" / "04 - 20260622 updates and requests" / "RIECS_stories_master_filterable.xlsx"
+# Source engagement data is kept locally and never committed (see .gitignore).
+# Place the three files below in ./data_local/ to rebuild the graph.
+DATA = Path(__file__).resolve().parent / "data_local"
+NEEDS_CSV = DATA / "needs.csv"                                  # curated core needs N01-N29 (+ member_labels)
+NEEDS_XLSX = DATA / "needs_summary_with_quotes_v002.xlsx"       # full framework incl. N30-N37 themes
+STORIES = DATA / "RIECS_stories_master_filterable_v001.xlsx"    # story master (v001, sheet stories_master_v001)
 OUT = Path(__file__).resolve().parent / "docs" / "data" / "graph.json"
 
 SEP = re.compile(r"\s*›\s*")          # labelbook separator is "›" (U+203A)
@@ -33,7 +37,17 @@ def tid(theme): return "T:" + re.sub(r"[^a-z0-9]+", "-", theme.lower()).strip("-
 needs = list(csv.DictReader(open(NEEDS_CSV, encoding="utf-8-sig")))
 need_theme = {n["need_id"]: n["theme"].strip() for n in needs}
 need_name  = {n["need_id"]: n["name"].strip() for n in needs}
-VALID = set(need_theme)                                # N01..N29
+# extend with the inferred needs N30-N37 (theme + name) from needs_summary v002,
+# which work/needs.csv (29 core needs) does not contain
+_nsw = openpyxl.load_workbook(NEEDS_XLSX, data_only=True).active
+_nsr = [r for r in _nsw.iter_rows(values_only=True)]
+_nsh = {str(c).strip(): i for i, c in enumerate(_nsr[0])}
+for _r in _nsr[1:]:
+    _nid = str(_r[_nsh["need_id"]]).strip() if _r[_nsh["need_id"]] else ""
+    if _nid and _nid not in need_theme and str(_r[_nsh["theme"]] or "").strip():
+        need_theme[_nid] = str(_r[_nsh["theme"]] or "").strip()
+        need_name[_nid]  = str(_r[_nsh["need_name"]] or "").strip()
+VALID = set(need_theme)                                # N01..N37
 
 # member_labels = the labels that *make up* (define) each need. Two forms:
 #   explicit  "Group › Sublabel"  -> that label is a member of the need
@@ -60,7 +74,7 @@ theme_order = {t: i for i, t in enumerate(themes)}
 
 # ---- stories: co-occurrence label<->need, and per-node story counts ----------
 wb = openpyxl.load_workbook(STORIES, data_only=True)
-ws = wb["RIECS_stories_master_filterable"]
+ws = wb["stories_master_v001"]
 rows = list(ws.iter_rows(values_only=True))
 H = {h: i for i, h in enumerate(rows[0]) if h and h != "None"}
 
@@ -79,7 +93,7 @@ for r in rows[1:]:
     if aud is None:
         continue
     raw_labels = r[H["labels"]]
-    raw_needs = r[H["need_ids"]]
+    raw_needs = r[H["need_ids_incl_N30_37_INFERRED"]]
     labs = [x.strip() for x in str(raw_labels or "").split("|") if x.strip()]
     nds = [x.strip() for x in re.split(r"[\s,;]+", str(raw_needs or "")) if x.strip() in VALID]
     for l in set(labs):
@@ -186,7 +200,7 @@ data = {
     "meta": {"labels": len(labels_sorted), "needs": len(needs_sorted), "themes": len(themes),
              "edges_member": n_member, "edges_cooc": len(ln) - n_member,
              "edges_need_theme": len(needs_sorted),
-             "source": "RIECS_stories_master_filterable.xlsx (non-rejected) + work/needs.csv",
+             "source": "RIECS_stories_master_filterable_v001.xlsx (non-rejected) + work/needs.csv + needs_summary_with_quotes_v002.xlsx (N30-N37 themes)",
              "note": "label->need has two kinds: 'member' = labels that MAKE UP the need "
                      "(curated member_labels); 'cooc' = labels that CO-OCCUR on the need's stories "
                      "(weight = #stories). need->theme kind='theme'. Counts/weights are split by "

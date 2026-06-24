@@ -10,3 +10,6 @@ work/
 Thumbs.db
 .vscode/
 .idea/
+
+# local-only source data for rebuilding graph.json
+data_local/
