@@ -20,7 +20,7 @@ import openpyxl
 DATA = Path(__file__).resolve().parent / "data_local"
 NEEDS_CSV = DATA / "needs.csv"                                  # curated core needs N01-N29 (+ member_labels)
 NEEDS_XLSX = DATA / "needs_summary_with_quotes_v002.xlsx"       # full framework incl. N30-N37 themes
-STORIES = DATA / "RIECS_stories_master_filterable_v001.xlsx"    # story master (v001, sheet stories_master_v001)
+STORIES = DATA / "RIECS_stories_master_filterable_v002.xlsx"    # story master (v001, sheet stories_master_v002)
 OUT = Path(__file__).resolve().parent / "docs" / "data" / "graph.json"
 
 SEP = re.compile(r"\s*›\s*")          # labelbook separator is "›" (U+203A)
@@ -74,7 +74,7 @@ theme_order = {t: i for i, t in enumerate(themes)}
 
 # ---- stories: co-occurrence label<->need, and per-node story counts ----------
 wb = openpyxl.load_workbook(STORIES, data_only=True)
-ws = wb["stories_master_v001"]
+ws = wb["stories_master_v002"]
 rows = list(ws.iter_rows(values_only=True))
 H = {h: i for i, h in enumerate(rows[0]) if h and h != "None"}
 
@@ -200,7 +200,7 @@ data = {
     "meta": {"labels": len(labels_sorted), "needs": len(needs_sorted), "themes": len(themes),
              "edges_member": n_member, "edges_cooc": len(ln) - n_member,
              "edges_need_theme": len(needs_sorted),
-             "source": "RIECS_stories_master_filterable_v001.xlsx (non-rejected) + work/needs.csv + needs_summary_with_quotes_v002.xlsx (N30-N37 themes)",
+             "source": "RIECS_stories_master_filterable_v002.xlsx (non-rejected) + work/needs.csv + needs_summary_with_quotes_v002.xlsx (N30-N37 themes)",
              "note": "label->need has two kinds: 'member' = labels that MAKE UP the need "
                      "(curated member_labels); 'cooc' = labels that CO-OCCUR on the need's stories "
                      "(weight = #stories). need->theme kind='theme'. Counts/weights are split by "
